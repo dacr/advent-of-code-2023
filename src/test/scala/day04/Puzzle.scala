@@ -41,15 +41,15 @@ def resolveStar1(input: List[String]): Long =
 // ------------------------------------------------------------------------------
 def resolveStar2(input: List[String]): Long = {
   val cards        = parse(input)
-  val wins         =
+  val winsForCard  =
     cards.tails
       .filterNot(_.isEmpty)
       .map(cards => cards.head -> cards.drop(1).take(cards.headOption.map(_.winningNumberCount).getOrElse(0)))
       .toMap
   val initialState = cards.map(card => card -> 1).toMap
   val finalState   = cards.foldLeft(initialState) { case (state, card) =>
-    val wonCards  = wins(card)
     val cardCount = state(card)
+    val wonCards  = winsForCard(card)
     wonCards.foldLeft(state) { case (state, wonCard) =>
       state.updatedWith(wonCard)(valueOpt => valueOpt.map(_ + cardCount))
     }
