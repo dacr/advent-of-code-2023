@@ -25,7 +25,7 @@ case class Range(from: Num, length: Num) {
   }
 
   def exclude(other: Range): List[Range] = {
-    if (disjoined(other)) Nil
+    if (disjoined(other)) this::Nil
     else {
       val leftFrom  = from
       val leftTo    = other.from - 1
@@ -34,6 +34,14 @@ case class Range(from: Num, length: Num) {
       val ranges    = Range.fromTo(leftFrom, leftTo) :: Range.fromTo(rightFrom, rightTo) :: Nil
       ranges.flatten
     }
+  }
+
+  def exclude(others: List[Range]): List[Range] = {
+    var ranges = List(this)
+    others.foreach { other =>
+      ranges = ranges.flatMap(range => range.exclude(other))
+    }
+    ranges
   }
 
   override def toString = s"[$from,$to]"
@@ -74,25 +82,25 @@ case class Conversion(inputType: String, outputType: String, rules: List[Rule]) 
     }
   }
 
-  def convertWorker(remainingRules: List[Rule], inputRanges: List[Range]): List[Range] = {
-    remainingRules match {
-      case Nil                => Nil
-      case rule :: otherRules =>
-        inputRanges match {
-          case Nil                                             => Nil
-          case range :: others if range.disjoined(rule.source) => convertWorker(otherRules, inputRanges)
-          case range :: others                                 =>
-            val commonRange          = range.intersect(rule.source)
-            val outsideRange         = range.exclude(rule.source)
-            val convertedCommonRange = commonRange.flatMap(cr => Range.fromTo(from = rule.convert(cr.from), to = rule.convert(cr.to)))
-            convertedCommonRange ++: convertWorker(rules, outsideRange) ++: convertWorker(rules,others)
-        }
+  def convert(ranges: List[Range]): List[Range] = {
+    var inputRanges  = ranges
+    var outputRanges = List.empty[Range]
+    while (!inputRanges.isEmpty) {
+      val range        = inputRanges.head
+      inputRanges = inputRanges.tail
+      var commonRanges = List.empty[Range]
+      rules.foreach { rule =>
+        val commonRange          = range.intersect(rule.source)
+        val convertedCommonRange = commonRange.flatMap(cr => Range.fromTo(from = rule.convert(cr.from), to = rule.convert(cr.to)))
+        commonRanges ++= commonRange
+        outputRanges ++= convertedCommonRange
+      }
+      if (!commonRanges.isEmpty) inputRanges ++= range.exclude(commonRanges)
+      else outputRanges = range :: outputRanges
     }
+    outputRanges
   }
 
-  def convert(ranges: List[Range]): List[Range] = {
-    convertWorker(rules, ranges)
-  }
 }
 
 case class Almanac(seeds: List[Num], conversions: List[Conversion])
@@ -157,10 +165,10 @@ def convert(almanac: Almanac, ranges: List[Range], inputType: String, targetType
     case Some(conversion) =>
       val newRanges    = conversion.convert(ranges)
       val newInputType = conversion.outputType
-      println(s"---------------------------------")
-      println(s"$inputType=>$newInputType")
-      println(s"   ${ranges.toString}")
-      println(s"   ${newRanges.toString}")
+      //println(s"---------------------------------")
+      //println(s"$inputType=>$newInputType")
+      //println(s"   ${ranges.toString}")
+      //println(s"   ${newRanges.toString}")
       if (newInputType == targetType) newRanges
       else convert(almanac, newRanges, newInputType, targetType)
   }
@@ -172,7 +180,7 @@ def resolveStar2(input: String): Long = {
     .sliding(2, 2)
     .toList
     .map(Range.fromList)
-    .tap(r => println(s"RANGE $r"))
+    //.tap(r => println(s"RANGE $r"))
     .map(seedRange => convert(almanac, seedRange :: Nil, "seed", "location"))
     .flatMap(_.map(_.from))
     .min
@@ -198,11 +206,13 @@ object Puzzle05Test extends ZIOSpecDefault {
         range(10, 20).exclude(range(10, 10)) == List(range(11, 20)),
         range(10, 20).exclude(range(5, 15)) == List(range(16, 20)),
         range(10, 20).exclude(range(13, 17)) == List(range(10, 12), range(18, 20)),
-        range(10, 20).exclude(range(30, 40)).isEmpty,
+        range(10, 20).exclude(range(30, 40)) == List(range(10,20)),
         range(10, 20).intersect(range(15, 25)).contains(range(15, 20)),
         range(10, 20).intersect(range(5, 15)).contains(range(10, 15)),
         range(10, 20).intersect(range(30, 40)).isEmpty,
-        range(45, 55).intersect(range(0, 69)).contains(range(45, 55))
+        range(45, 55).intersect(range(0, 69)).contains(range(45, 55)),
+        range(0,100).exclude(range(10,25)) == List(range(0,9), range(26,100)),
+        range(0,100).exclude(range(10,25)::range(50,75)::Nil) == List(range(0,9), range(26,49), range(76,100)),
       )
     },
     test("star#1") {
@@ -224,10 +234,11 @@ object Puzzle05Test extends ZIOSpecDefault {
         exampleInput1 <- fileContent(Path(s"data/$day/example-1.txt"))
         exampleResult1 = resolveStar2(exampleInput1)
         puzzleInput   <- fileContent(Path(s"data/$day/puzzle-1.txt"))
-        // puzzleResult   = resolveStar2(puzzleInput)
+        puzzleResult   = resolveStar2(puzzleInput)
       } yield assertTrue(
-        exampleResult1 == 46L
-        // puzzleResult == 0
+        exampleResult1 == 46L,
+        puzzleResult < 68608231L,
+        puzzleResult == 41222968L
       )
     }
   ) @@ timed @@ sequential
