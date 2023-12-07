@@ -39,7 +39,7 @@ def parseStar2(input: List[String]) =
 
 def findFirst(race: Race): Long = {
   def worker(leftWaitTime: Long, currentWaitTime: Long, rightWaitTime: Long): Long = {
-    println(s"first : $leftWaitTime, $currentWaitTime, $rightWaitTime")
+    //println(s"first : $leftWaitTime, $currentWaitTime, $rightWaitTime")
     if (currentWaitTime == leftWaitTime) currentWaitTime
     else {
       if (getDistance(currentWaitTime, race.maxTime) > race.currentRecord)
@@ -53,7 +53,7 @@ def findFirst(race: Race): Long = {
 
 def findLast(race: Race): Long = {
   def worker(leftWaitTime: Long, currentWaitTime: Long, rightWaitTime: Long): Long = {
-    println(s"last: $leftWaitTime, $currentWaitTime, $rightWaitTime")
+    //println(s"last: $leftWaitTime, $currentWaitTime, $rightWaitTime")
     if (currentWaitTime == leftWaitTime) currentWaitTime
     else {
       if (getDistance(currentWaitTime, race.maxTime) < race.currentRecord)
