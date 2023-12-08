@@ -12,7 +12,7 @@ type Relations   = Map[Key, (Key, Key)]
 // ------------------------------------------------------------------------------
 val relationRE = """(\w+) *= *\((\w+), *(\w+)\)""".r
 
-def parse(input: String): ( () => Iterator[Instruction], Relations) =
+def parse(input: String): ( () => LazyList[Instruction], Relations) =
   input.split("\n\n", 2) match {
     case Array(instructions, relationsRaw) =>
       val relations =
@@ -20,19 +20,19 @@ def parse(input: String): ( () => Iterator[Instruction], Relations) =
           .split("\n")
           .collect { case relationRE(from, left, right) => from -> (left, right) }
           .toMap
-      ( () => LazyList.continually(LazyList.from(instructions)).flatten.iterator) -> relations
+      ( () => LazyList.continually(LazyList.from(instructions)).flatten) -> relations
   }
 
 // ------------------------------------------------------------------------------
 
 @tailrec
-def walk(current: Key, instructions: Iterator[Instruction], relations: Relations, depth: Int): Int = {
+def walk(current: Key, instructions: LazyList[Instruction], relations: Relations, depth: Int): Int = {
   if (current == "ZZZ") depth
   else {
-    val instruction = instructions.next()
+    val instruction = instructions.head
     relations.get(current) match {
-      case Some((left, right)) if instruction == 'L' => walk(left, instructions, relations, depth + 1)
-      case Some((left, right)) if instruction == 'R' => walk(right, instructions, relations, depth + 1)
+      case Some((left, right)) if instruction == 'L' => walk(left, instructions.tail, relations, depth + 1)
+      case Some((left, right)) if instruction == 'R' => walk(right, instructions.tail, relations, depth + 1)
     }
   }
 }
@@ -48,13 +48,13 @@ def gcds(nums: Iterable[Long]): Long = nums.reduce(gcd)
 def lcms(nums: Iterable[Long]): Long = nums.reduce(lcm)
 
 @tailrec
-def walk2(current: Key, instructions: Iterator[Instruction], relations: Relations, depth: Int): Int = {
+def walk2(current: Key, instructions: LazyList[Instruction], relations: Relations, depth: Int): Int = {
   if (current.endsWith("Z")) depth
   else {
-    val instruction = instructions.next()
+    val instruction = instructions.head
     relations.get(current) match {
-      case Some((left, right)) if instruction == 'L' => walk2(left, instructions, relations, depth + 1)
-      case Some((left, right)) if instruction == 'R' => walk2(right, instructions, relations, depth + 1)
+      case Some((left, right)) if instruction == 'L' => walk2(left, instructions.tail, relations, depth + 1)
+      case Some((left, right)) if instruction == 'R' => walk2(right, instructions.tail, relations, depth + 1)
     }
   }
 }
