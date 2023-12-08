@@ -12,7 +12,7 @@ type Relations   = Map[Key, (Key, Key)]
 // ------------------------------------------------------------------------------
 val relationRE = """(\w+) *= *\((\w+), *(\w+)\)""".r
 
-def parse(input: String): (LazyList[Instruction], Relations) =
+def parse(input: String): (Iterator[Instruction], Relations) =
   input.split("\n\n", 2) match {
     case Array(instructions, relationsRaw) =>
       val relations =
@@ -20,18 +20,20 @@ def parse(input: String): (LazyList[Instruction], Relations) =
           .split("\n")
           .collect { case relationRE(from, left, right) => from -> (left, right) }
           .toMap
-      LazyList.continually(LazyList.from(instructions)).flatten -> relations
+      LazyList.continually(LazyList.from(instructions)).flatten.iterator -> relations
   }
 
 // ------------------------------------------------------------------------------
 
-def walk1(current: Key, instructions: LazyList[Instruction], relations: Relations, depth: Int): Int = {
+def walk1(current: Key, instructions: Iterator[Instruction], relations: Relations, depth: Int): Int = {
   if (current == "ZZZ") depth
-  else
+  else {
+    val instruction = instructions.next()
     relations.get(current) match {
-      case Some((left, right)) if instructions.head == 'L' => walk1(left, instructions.tail, relations, depth + 1)
-      case Some((left, right)) if instructions.head == 'R' => walk1(right, instructions.tail, relations, depth + 1)
+      case Some((left, right)) if instruction == 'L' => walk1(left, instructions, relations, depth + 1)
+      case Some((left, right)) if instruction == 'R' => walk1(right, instructions, relations, depth + 1)
     }
+  }
 }
 
 def resolveStar1(input: String): Int =
@@ -40,21 +42,33 @@ def resolveStar1(input: String): Int =
 
 // ------------------------------------------------------------------------------
 
+//@tailrec
+//def walk2prev(currents: Iterable[Key], instructions: Iterator[Instruction], relations: Relations, depth: Int): Int = {
+//  if (currents.forall(_.endsWith("Z"))) depth
+//  else
+//    val nextCurrents = instructions.next() match {
+//      case 'L' => currents.flatMap(current => relations.get(current).map(_._1))
+//      case 'R' => currents.flatMap(current => relations.get(current).map(_._2))
+//    }
+//    walk2prev(nextCurrents, instructions, relations, depth + 1)
+//}
+
 @tailrec
-def walk2(currents: Iterable[Key], instructions: LazyList[Instruction], relations: Relations, depth: Int): Int = {
+def walk2(currents: Array[Key], instructions: Iterator[Instruction], relations: Relations, depth: Int): Int = {
   if (currents.forall(_.endsWith("Z"))) depth
-  else
-    val nextCurrents = instructions.head match {
-      case 'L' => currents.flatMap(current => relations.get(current).map(_._1))
-      case 'R' => currents.flatMap(current => relations.get(current).map(_._2))
+  else {
+    instructions.next match {
+      case 'L' => for(i <- 0.until(currents.size)) currents.update(i, relations(currents(i))(0))
+      case 'R' => for(i <- 0.until(currents.size)) currents.update(i, relations(currents(i))(1))
     }
-    walk2(nextCurrents, instructions.tail, relations, depth + 1)
+    walk2(currents, instructions, relations, depth + 1)
+  }
 }
 
 def resolveStar2(input: String): Int =
   val (instructions, relations) = parse(input)
   val startNodes = relations.keys.filter(_.endsWith("A"))
-  walk2(startNodes, instructions, relations, 0)
+  walk2(startNodes.toArray, instructions.iterator, relations, 0)
 
 // ------------------------------------------------------------------------------
 
