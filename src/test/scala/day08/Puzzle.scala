@@ -54,21 +54,22 @@ def resolveStar1(input: String): Int =
 //}
 
 @tailrec
-def walk2(currents: Array[Key], instructions: Iterator[Instruction], relations: Relations, depth: Int): Int = {
+def walk2(currents: Array[Key], instructions: Iterator[Instruction], relations: Relations, depth: Long): Long = {
+  if (depth % 5_000_000L == 0) println(s"""$depth : ${currents.toList.mkString("-")}""")
   if (currents.forall(_.endsWith("Z"))) depth
   else {
-    instructions.next match {
-      case 'L' => for(i <- 0.until(currents.size)) currents.update(i, relations(currents(i))(0))
-      case 'R' => for(i <- 0.until(currents.size)) currents.update(i, relations(currents(i))(1))
-    }
+    if (instructions.next == 'L')
+      for (i <- 0.until(currents.size)) currents.update(i, relations(currents(i))(0))
+    else
+      for (i <- 0.until(currents.size)) currents.update(i, relations(currents(i))(1))
     walk2(currents, instructions, relations, depth + 1)
   }
 }
 
-def resolveStar2(input: String): Int =
+def resolveStar2(input: String): Long =
   val (instructions, relations) = parse(input)
-  val startNodes = relations.keys.filter(_.endsWith("A"))
-  walk2(startNodes.toArray, instructions.iterator, relations, 0)
+  val startNodes                = relations.keys.filter(_.endsWith("A"))
+  walk2(startNodes.toArray, instructions.iterator, relations, 0L)
 
 // ------------------------------------------------------------------------------
 
@@ -98,9 +99,9 @@ object Puzzle08Test extends ZIOSpecDefault {
         puzzleInput   <- fileContent(Path(s"data/$day/puzzle-1.txt"))
         puzzleResult   = resolveStar2(puzzleInput)
       } yield assertTrue(
-        exampleResult1 == 6,
-        puzzleResult > 101149,
-        puzzleResult == 0
+        exampleResult1 == 6L,
+        puzzleResult > 101149L,
+        puzzleResult == 0L
       )
     }
   ) @@ timed @@ sequential
