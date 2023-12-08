@@ -1,0 +1,93 @@
+package day08
+
+import zio.*
+import zio.test.*
+import zio.test.TestAspect.*
+
+import scala.annotation.tailrec
+
+type Instruction = Char
+type Key         = String
+type Relations   = Map[Key, (Key, Key)]
+// ------------------------------------------------------------------------------
+val relationRE = """(\w+) *= *\((\w+), *(\w+)\)""".r
+
+def parse(input: String): (LazyList[Instruction], Relations) =
+  input.split("\n\n", 2) match {
+    case Array(instructions, relationsRaw) =>
+      val relations =
+        relationsRaw
+          .split("\n")
+          .collect { case relationRE(from, left, right) => from -> (left, right) }
+          .toMap
+      LazyList.continually(LazyList.from(instructions)).flatten -> relations
+  }
+
+// ------------------------------------------------------------------------------
+
+def walk1(current: Key, instructions: LazyList[Instruction], relations: Relations, depth: Int): Int = {
+  if (current == "ZZZ") depth
+  else
+    relations.get(current) match {
+      case Some((left, right)) if instructions.head == 'L' => walk1(left, instructions.tail, relations, depth + 1)
+      case Some((left, right)) if instructions.head == 'R' => walk1(right, instructions.tail, relations, depth + 1)
+    }
+}
+
+def resolveStar1(input: String): Int =
+  val (instructions, relations) = parse(input)
+  walk1("AAA", instructions, relations, 0)
+
+// ------------------------------------------------------------------------------
+
+@tailrec
+def walk2(currents: Iterable[Key], instructions: LazyList[Instruction], relations: Relations, depth: Int): Int = {
+  if (currents.forall(_.endsWith("Z"))) depth
+  else
+    val nextCurrents = instructions.head match {
+      case 'L' => currents.flatMap(current => relations.get(current).map(_._1))
+      case 'R' => currents.flatMap(current => relations.get(current).map(_._2))
+    }
+    walk2(nextCurrents, instructions.tail, relations, depth + 1)
+}
+
+def resolveStar2(input: String): Int =
+  val (instructions, relations) = parse(input)
+  val startNodes = relations.keys.filter(_.endsWith("A"))
+  walk2(startNodes, instructions, relations, 0)
+
+// ------------------------------------------------------------------------------
+
+object Puzzle08Test extends ZIOSpecDefault {
+  import zio.nio.file.Path
+  import helpers.Helpers.*
+  val day  = getClass.getName.replaceAll(""".*Puzzle(\d+)Test.*""", "day$1")
+  def spec = suite(s"puzzle $day")(
+    test("star#1") {
+      for {
+        exampleInput1 <- fileContent(Path(s"data/$day/example-1.txt"))
+        exampleResult1 = resolveStar1(exampleInput1)
+        exampleInput2 <- fileContent(Path(s"data/$day/example-2.txt"))
+        exampleResult2 = resolveStar1(exampleInput2)
+        puzzleInput   <- fileContent(Path(s"data/$day/puzzle-1.txt"))
+        puzzleResult   = resolveStar1(puzzleInput)
+      } yield assertTrue(
+        exampleResult1 == 2,
+        exampleResult2 == 6,
+        puzzleResult == 18023
+      )
+    },
+    test("star#2") {
+      for {
+        exampleInput1 <- fileContent(Path(s"data/$day/example-3.txt"))
+        exampleResult1 = resolveStar2(exampleInput1)
+        puzzleInput   <- fileContent(Path(s"data/$day/puzzle-1.txt"))
+        puzzleResult   = resolveStar2(puzzleInput)
+      } yield assertTrue(
+        exampleResult1 == 6,
+        puzzleResult > 101149,
+        puzzleResult == 0
+      )
+    }
+  ) @@ timed @@ sequential
+}
