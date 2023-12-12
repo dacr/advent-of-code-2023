@@ -59,6 +59,7 @@ def parse(input: List[String]) = {
 
 // ------------------------------------------------------------------------------
 
+// TODO - TO generalize for future reuses
 //type Path = List[Coord]
 //case class Work(path: Path)
 
