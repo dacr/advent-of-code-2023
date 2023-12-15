@@ -7,7 +7,7 @@ import scala.math.*
 
 // ------------------------------------------------------------------------------
 case class Pattern(rows: Vector[Vector[Char]], columns: Vector[Vector[Char]]) {
-  override def toString: String = columns.map(_.mkString).mkString("\n")
+  override def toString: String = rows.map(_.mkString).mkString("\n")
 }
 
 def parse(input: String) =
@@ -38,15 +38,41 @@ def resolveStar1(input: String): Int = {
   val patterns    = parse(input)
   val horizontals = patterns.flatMap(pattern => mirrorIndex(pattern.rows).map(_ + 1))
   val verticals   = patterns.flatMap(pattern => mirrorIndex(pattern.columns).map(_ + 1))
-  val notfound    = patterns.filter(pattern => mirrorIndex(pattern.rows).isEmpty && mirrorIndex(pattern.columns).isEmpty)
-//  println(notfound.mkString("\n\n"))
   verticals.sum + horizontals.sum * 100
 }
 
 // ------------------------------------------------------------------------------
+def smudgeIndex(input: Vector[Vector[Char]]): Option[Int] = {
+  0.to(input.size - 2).find { index =>
+    var leftIndex   = index
+    var rightIndex  = index + 1
+    var mirrored    = true
+    var differences = 0
+    while (mirrored && leftIndex >= 0 && rightIndex < input.size) {
+      val left  = input(leftIndex)
+      val right = input(rightIndex)
+      differences += left.zip(right).count((a, b) => a != b)
+      mirrored = left == right || differences == 1
+      leftIndex -= 1
+      rightIndex += 1
+    }
+    mirrored && differences == 1
+  }
+}
 
-def resolveStar2(input: String): Int =
-  0
+def resolveStar2(input: String): Int = {
+  val patterns = parse(input)
+
+  val horizontals =
+    patterns
+      .flatMap(pattern => smudgeIndex(pattern.rows).map(_ + 1))
+
+  val verticals =
+    patterns
+      .flatMap(pattern => smudgeIndex(pattern.columns).map(_ + 1))
+
+  verticals.sum + horizontals.sum * 100
+}
 
 // ------------------------------------------------------------------------------
 
@@ -74,8 +100,11 @@ object Puzzle13Test extends ZIOSpecDefault {
         puzzleInput   <- fileContent(Path(s"data/$day/puzzle-1.txt"))
         puzzleResult   = resolveStar2(puzzleInput)
       } yield assertTrue(
-        exampleResult1 == 0,
-        puzzleResult == 0
+        exampleResult1 == 400,
+        puzzleResult > 20220,
+        puzzleResult > 26862,
+        puzzleResult > 30927,
+        puzzleResult == 37416
       )
     }
   ) @@ timed @@ sequential
