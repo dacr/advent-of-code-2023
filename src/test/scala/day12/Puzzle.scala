@@ -35,8 +35,8 @@ def sumDecompose(sumGoal: Int): List[List[Int]] = {
   decompose(sumGoal, 1.to(sumGoal).map(n => n :: Nil).toList)
 }
 
-def sumDecompose0(sumGoal: Int, length: Int): List[List[Int]] = {
-  def decompose(currentLength: Int, accumulator: List[List[Int]]): List[List[Int]] = {
+def sumDecompose0(sumGoal: Int, length: Int): LazyList[List[Int]] = {
+  def decompose(currentLength: Int, accumulator: LazyList[List[Int]]): LazyList[List[Int]] = {
     if (currentLength == 0) accumulator
     else {
       val nextAccu =
@@ -48,17 +48,27 @@ def sumDecompose0(sumGoal: Int, length: Int): List[List[Int]] = {
       decompose(currentLength - 1, nextAccu)
     }
   }
-  decompose(length - 1, 0.to(sumGoal).map(n => n :: Nil).toList).filter(_.sum == sumGoal)
+  decompose(length - 1, LazyList.from(0.to(sumGoal).map(n => n :: Nil))).filter(_.sum == sumGoal)
+}
+
+def patternCheck(pattern: String, segments: List[String], configuration: List[Int]): Boolean = { // TODO not optimal !
+  val patternFromConfig = segments.zip(configuration).map((s, c) => ("." * c) + s).mkString
+  val result            = pattern.zip(patternFromConfig).forall((l, r) => l == r || l == '?')
+  //println(s"$pattern\n$patternFromConfig $result\n")
+  result
 }
 
 def arrangements(pattern: String, damages: List[Int]): Int = {
+  println(s"$pattern $damages")
   val damagesSegments = damages.map(count => "#" * count)
-  val segments        = damagesSegments.head :: damagesSegments.tail.map(segment => " " + segment)
+  val segments        = (damagesSegments.head :: damagesSegments.tail.map(segment => "." + segment)) :+ ""
   val segmentsLength  = segments.map(_.size).sum
   val availableSpaces = pattern.length - segmentsLength // how may spaces we can insert between/arround
-  val insertPlaces    = segments.size + 1               // how many places where we can insert spaces
-
-  ???
+  val insertPlaces    = segments.size                   // how many places where we can insert spaces
+  def configurations  = sumDecompose0(availableSpaces, insertPlaces)
+  val result          = configurations.count(config => patternCheck(pattern, segments, config))
+  println(s"   $result")
+  result
 }
 
 def resolveStar1(input: List[String]): Int = {
@@ -70,9 +80,17 @@ def resolveStar1(input: List[String]): Int = {
 
 // ------------------------------------------------------------------------------
 
-def resolveStar2(input: List[String]): Int =
-  val springs = parse(input)
-  0
+def resolveStar2(input: List[String]): Int = {
+  val springs = parse(input).map(from =>
+    Spring(
+      LazyList.continually(from.pattern).take(5).mkString("?"),
+      LazyList.continually(from.damages).take(5).flatten.toList
+    )
+  )
+  springs
+    .map(spring => arrangements(spring.pattern, spring.damages))
+    .sum
+}
 
 // ------------------------------------------------------------------------------
 
@@ -128,7 +146,7 @@ object Puzzle12Test extends ZIOSpecDefault {
         puzzleResult  = resolveStar1(puzzleInput)
       } yield assertTrue(
         exampleResult == 21,
-        puzzleResult == 0
+        puzzleResult == 8193
       )
     },
     test("star#2") {
@@ -138,7 +156,7 @@ object Puzzle12Test extends ZIOSpecDefault {
         puzzleInput   <- fileLines(Path(s"data/$day/puzzle-1.txt"))
         puzzleResult   = resolveStar2(puzzleInput)
       } yield assertTrue(
-        exampleResult1 == 0,
+        exampleResult1 == 525152,
         puzzleResult == 0
       )
     }
