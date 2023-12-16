@@ -3,6 +3,7 @@ package day00
 import zio.*
 import zio.test.*
 import zio.test.TestAspect.*
+import scala.math.*
 
 // ------------------------------------------------------------------------------
 def parse(input: List[String]) =
