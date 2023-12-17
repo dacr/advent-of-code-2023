@@ -5,8 +5,9 @@ import zio.test.*
 import zio.test.TestAspect.*
 
 import scala.annotation.tailrec
+import scala.collection.mutable.ArrayBuffer
 import scala.math.*
-import scala.io.AnsiColor.{RED_B, RESET}
+import scala.io.AnsiColor.{RED_B, RESET, CYAN_B, BLUE_B, GREEN_B}
 
 // ------------------------------------------------------------------------------
 
@@ -63,37 +64,48 @@ def walk(
 ): List[Solution] = {
   @tailrec
   def worker(
-    toVisit: List[Work],
+    toVisit: Seq[Work],
     solutions: List[Solution],
-    bestWeightAt: Map[Coord, Int]
+    bestWeightAt: Map[Coord, Int],
+    bestPathWeight: Option[Int],
+    iter: Int
   ): List[Solution] = {
+    if (iter % 4_000_000 == 0 && toVisit.size > 0) {
+      dump(toVisit.head)
+      println(s"${GREEN_B}solutions=${solutions.size} toVisit=${toVisit.size}$RESET")
+    }
     toVisit match {
-      case Nil =>
+      case works if works.isEmpty =>
         solutions
 
-      case works @ work :: _ if !bestWeightAt.contains(work.coord) =>
-        worker(works, solutions, bestWeightAt + (work.coord -> work.weight))
+      case Seq(work, remainWork*) if bestPathWeight.exists(best => work.weight > best) =>
+        worker(remainWork, solutions, bestWeightAt, bestPathWeight, iter + 1)
 
-      case work :: remainWork if bestWeightAt.get(work.coord).exists(best => work.weight > best) =>
-        worker(remainWork, solutions, bestWeightAt)
+      case works @ Seq(work, _*) if !bestWeightAt.contains(work.coord) =>
+        worker(works, solutions, bestWeightAt + (work.coord -> work.weight), bestPathWeight, iter + 1)
 
-      case works @ work :: _ if bestWeightAt.get(work.coord).exists(best => work.weight < best) =>
-        worker(works, solutions, bestWeightAt + (work.coord -> work.weight))
+      case Seq(work, remainWork*) if bestWeightAt.get(work.coord).exists(best => work.weight > best) =>
+        worker(remainWork, solutions, bestWeightAt, bestPathWeight, iter + 1)
 
-      case work :: remainWork if goalReached(work) =>
-        val newSolutions = (Solution(work.path, work.weight) :: solutions).filterNot(_.weight > work.weight)
+      case works @ Seq(work, _*) if bestWeightAt.get(work.coord).exists(best => work.weight < best) =>
+        worker(works, solutions, bestWeightAt + (work.coord -> work.weight), bestPathWeight, iter + 1)
+
+      case Seq(work, remainWork*) if goalReached(work) =>
+        val newBestWeight = bestPathWeight.map(best => min(best, work.weight)).orElse(Some(work.weight))
+        val newSolutions  = (Solution(work.path, work.weight) :: solutions).filterNot(_.weight > newBestWeight.get)
         dump(work)
-        worker(remainWork, newSolutions, bestWeightAt)
+        worker(remainWork, newSolutions, bestWeightAt, newBestWeight, iter + 1)
 
-      case work :: remainWork =>
+      case Seq(work, remainWork*) =>
         val nextCoords  = around(work).filterNot(work.visited.contains)
         val nextToVisit = nextCoords.map { nextCoord =>
           Work(nextCoord :: work.path, work.visited + nextCoord, nextWeight(nextCoord, work, coord2weight))
         }
-        worker(remainWork ::: nextToVisit , solutions, bestWeightAt)
+        worker(remainWork ++ nextToVisit, solutions, bestWeightAt, bestPathWeight, iter + 1) // BFS
+        //worker(nextToVisit ++ remainWork, solutions, bestWeightAt, bestPathWeight, iter + 1) // DFS
     }
   }
-  worker(Work(List(from), Set(from), Nil) :: Nil, Nil, Map.empty)
+  worker(Vector(Work(List(from), Set(from), Nil)), Nil, Map.empty, None, 0)
 }
 
 def nextWeight(nextCoord: Coord, work: Work, coord2weight: Coord => Int): List[Int] = {
