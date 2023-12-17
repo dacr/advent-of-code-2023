@@ -4,22 +4,46 @@ import zio.*
 import zio.test.*
 import zio.test.TestAspect.*
 
+case class Coord(x: Int, y: Int)
+
+case class Platform(
+  rollingRocks: Set[Coord],
+  cubicRocks: Set[Coord],
+  maxX: Int,
+  maxY: Int
+)
+
 // ------------------------------------------------------------------------------
 def parse(input: List[String]) = {
-  val cells = for {
+  val cells        = for {
     (row, y)  <- input.zipWithIndex
     (cell, x) <- row.zipWithIndex
     if cell != '.'
-  } yield (x, y) -> cell
-
-  val (rounded, cubes) = cells.partition { case (_, cell) => cell == 'O' }
-  (rounded, cubes)
+  } yield Coord(x, y) -> cell
+  val maxX         = cells.maxBy((coord, _) => coord.x)._1.x
+  val maxY         = cells.maxBy((coord, _) => coord.y)._1.y
+  val cellsByType  = cells.groupMap((coord, cell) => cell)((coord, cell) => coord)
+  val rollingRocks = cellsByType('O').toSet
+  val cubicRocks   = cellsByType('#').toSet
+  Platform(rollingRocks, cubicRocks, maxX, maxY)
 }
 
 // ------------------------------------------------------------------------------
+def slideNorth(rollingRocks: Set[Coord], platform: Platform): Set[Coord] = {
+  val rollingRocksByX     = rollingRocks.groupBy(_.x)
+  var updatedRollingRocks = rollingRocks
+  0.to(platform.maxX).map { x =>
+    0.to(platform.maxY).map { y =>
+      val coord = Coord(x, y)
+
+    }
+  }
+  ???
+}
 
 def resolveStar1(input: List[String]): Int = {
-  val (rounded, cubes) = parse(input)
+  val platform          = parse(input)
+  val movedRollingRocks = slideNorth(platform.rollingRocks, platform)
   ???
 }
 
