@@ -15,7 +15,7 @@ case class Coord(x: Int, y: Int) {
   def left   = Coord(x - 1, y)
   def north  = Coord(x, y - 1)
   def south  = Coord(x, y + 1)
-  def around = List(right, south, north, left)
+  def around = List(south, right, north, left)
 }
 
 case class Area(cells: Map[Coord, Int], maxX: Int, maxY: Int)
@@ -32,7 +32,7 @@ def parse(input: List[String]) = {
 
 // ------------------------------------------------------------------------------
 type Path = List[Coord]
-case class Solution(path: Path, weights: List[Int])
+case class Solution(path: Path, weight: Int)
 case class Work(path: Path, visited: Set[Coord], weights: List[Int]) {
   def coord  = path.head
   def weight = weights.headOption.getOrElse(0)
@@ -50,7 +50,7 @@ def dump(area: Area)(work: Work): Unit = {
     }
     println()
   }
-  println(pathCoords.toList.init.map(c => area.cells(c)).sum)
+  // println(pathCoords.toList.init.map(c => area.cells(c)).sum)
   println(work.weights.mkString("-"))
 }
 
@@ -65,37 +65,35 @@ def walk(
   def worker(
     toVisit: List[Work],
     solutions: List[Solution],
-    bestWeightAt: Map[Coord, Int],
-    bestPathWeight: Option[Int]
+    bestWeightAt: Map[Coord, Int]
   ): List[Solution] = {
     toVisit match {
       case Nil =>
         solutions
 
-      case work :: remainWork if bestPathWeight.exists(best => work.weight > best) =>
-        worker(remainWork, solutions, bestWeightAt, bestPathWeight)
+      case works @ work :: _ if !bestWeightAt.contains(work.coord) =>
+        worker(works, solutions, bestWeightAt + (work.coord -> work.weight))
 
       case work :: remainWork if bestWeightAt.get(work.coord).exists(best => work.weight > best) =>
-        worker(remainWork, solutions, bestWeightAt, bestPathWeight)
+        worker(remainWork, solutions, bestWeightAt)
+
+      case works @ work :: _ if bestWeightAt.get(work.coord).exists(best => work.weight < best) =>
+        worker(works, solutions, bestWeightAt + (work.coord -> work.weight))
 
       case work :: remainWork if goalReached(work) =>
-        val newSolutions      = Solution(work.path, work.weights) :: solutions
+        val newSolutions = Solution(work.path, work.weight) :: solutions
         dump(work)
-        val newBestWeightAt   = work.path.zip(work.weights).foldLeft(bestWeightAt) { case (bests, (coord, weight)) =>
-          bests + (coord -> bestWeightAt.get(coord).map(prevWeight => min(prevWeight, weight)).getOrElse(weight))
-        }
-        val newBestPathWeight = bestPathWeight.map(best => min(best, work.weight)).orElse(Some(work.weight))
-        worker(remainWork, newSolutions, newBestWeightAt, newBestPathWeight)
+        worker(remainWork, newSolutions, bestWeightAt)
 
       case work :: remainWork =>
         val nextCoords  = around(work).filterNot(work.visited.contains)
         val nextToVisit = nextCoords.map { nextCoord =>
           Work(nextCoord :: work.path, work.visited + nextCoord, nextWeight(nextCoord, work, coord2weight))
         }
-        worker(nextToVisit ::: remainWork, solutions, bestWeightAt, bestPathWeight)
+        worker(remainWork:::nextToVisit, solutions, bestWeightAt)
     }
   }
-  worker(Work(List(from), Set(from), Nil) :: Nil, Nil, Map.empty, None)
+  worker(Work(List(from), Set(from), Nil) :: Nil, Nil, Map.empty)
 }
 
 def nextWeight(nextCoord: Coord, work: Work, coord2weight: Coord => Int): List[Int] = {
@@ -107,19 +105,14 @@ def nextWeight(nextCoord: Coord, work: Work, coord2weight: Coord => Int): List[I
 
 // ------------------------------------------------------------------------------
 
-def checkValid(c1: Coord, work: Work): Boolean = {
+def checkValid(c1: Coord, work: Work): Boolean = { // TODO not optimal !!
   work.path match {
     case c2 :: c3 :: c4 :: c5 :: _ if c1.x == c2.x && c1.x == c3.x && c1.x == c4.x && c1.x == c5.x => false
     case c2 :: c3 :: c4 :: c5 :: _ if c1.y == c2.y && c1.y == c3.y && c1.y == c4.y && c1.y == c5.y => false
     case _                                                                                         => true
   }
 }
-//def checkValid(c1: Coord, work: Work): Boolean = {
-//  !(c1.right :: c1.right.right :: c1.right.right.right :: c1.right.right.right.right :: Nil).forall(c => work.visited.contains(c)) &&
-//  !(c1.left :: c1.left.left :: c1.left.left.left:: c1.left.left.left.left :: Nil).forall(c => work.visited.contains(c)) &&
-//  !(c1.north :: c1.north.north :: c1.north.north.north :: c1.north.north.north.north :: Nil).forall(c => work.visited.contains(c)) &&
-//  !(c1.south :: c1.south.south :: c1.south.south.south :: c1.south.south.south.south :: Nil).forall(c => work.visited.contains(c))
-//}
+
 
 def resolveStar1(input: List[String]): Int = {
   val area = parse(input)
@@ -139,7 +132,7 @@ def resolveStar1(input: List[String]): Int = {
     coord2weight = coord => area.cells(coord),
     dump(area)
   )
-  result.head.weights.head
+  result.head.weight
 }
 
 // ------------------------------------------------------------------------------
@@ -159,10 +152,10 @@ object Puzzle17Test extends ZIOSpecDefault {
         exampleInput <- fileLines(Path(s"data/$day/example-1.txt"))
         exampleResult = resolveStar1(exampleInput)
         puzzleInput  <- fileLines(Path(s"data/$day/puzzle-1.txt"))
-        // puzzleResult  = resolveStar1(puzzleInput)
+        puzzleResult  = resolveStar1(puzzleInput)
       } yield assertTrue(
-        exampleResult == 102
-        // puzzleResult == 0
+        exampleResult == 102,
+        puzzleResult == 0
       )
     },
     test("star#2") {
