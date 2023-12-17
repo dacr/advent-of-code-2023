@@ -81,7 +81,7 @@ def walk(
         worker(works, solutions, bestWeightAt + (work.coord -> work.weight))
 
       case work :: remainWork if goalReached(work) =>
-        val newSolutions = Solution(work.path, work.weight) :: solutions
+        val newSolutions = (Solution(work.path, work.weight) :: solutions).filterNot(_.weight > work.weight)
         dump(work)
         worker(remainWork, newSolutions, bestWeightAt)
 
@@ -90,7 +90,7 @@ def walk(
         val nextToVisit = nextCoords.map { nextCoord =>
           Work(nextCoord :: work.path, work.visited + nextCoord, nextWeight(nextCoord, work, coord2weight))
         }
-        worker(remainWork:::nextToVisit, solutions, bestWeightAt)
+        worker(remainWork ::: nextToVisit , solutions, bestWeightAt)
     }
   }
   worker(Work(List(from), Set(from), Nil) :: Nil, Nil, Map.empty)
@@ -113,7 +113,6 @@ def checkValid(c1: Coord, work: Work): Boolean = { // TODO not optimal !!
   }
 }
 
-
 def resolveStar1(input: List[String]): Int = {
   val area = parse(input)
   val from = Coord(0, 0)
@@ -132,6 +131,7 @@ def resolveStar1(input: List[String]): Int = {
     coord2weight = coord => area.cells(coord),
     dump(area)
   )
+  println("result count = " + result.size)
   result.head.weight
 }
 
