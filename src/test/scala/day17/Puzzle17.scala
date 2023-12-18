@@ -7,7 +7,7 @@ import zio.test.TestAspect.*
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.math.*
-import scala.io.AnsiColor.{RED_B, RESET, CYAN_B, BLUE_B, GREEN_B}
+import scala.io.AnsiColor.{RED_B, RESET, CYAN_B, BLUE_B, GREEN_B, BLUE, GREEN}
 
 // ------------------------------------------------------------------------------
 
@@ -39,7 +39,7 @@ case class Work(path: Path, visited: Set[Coord], weights: List[Int]) {
   def weight = weights.headOption.getOrElse(0)
 }
 
-def dump(area: Area)(work: Work): Unit = {
+def dump(area: Area)(work: Work, bestWeightAt: Map[Coord, Int]): Unit = {
   val pathCoords = work.path.toSet
   if (pathCoords.size != work.path.size) ???
   0.to(area.maxY).foreach { y =>
@@ -47,6 +47,7 @@ def dump(area: Area)(work: Work): Unit = {
       val coord = Coord(x, y)
       val value = area.cells(coord)
       if (pathCoords.contains(coord)) print(s"$RED_B$value$RESET")
+      else if (bestWeightAt.contains(coord)) print(s"$BLUE$value$RESET")
       else print(value)
     }
     println()
@@ -57,10 +58,12 @@ def dump(area: Area)(work: Work): Unit = {
 
 def walk(
   from: Coord,
+  to:Coord,
   around: Work => List[Coord],
   goalReached: Work => Boolean,
   coord2weight: Coord => Int,
-  dump: Work => Unit
+  belowHint: Option[Int],
+  dump: (Work, Map[Coord, Int]) => Unit
 ): List[Solution] = {
   @tailrec
   def worker(
@@ -70,9 +73,9 @@ def walk(
     bestPathWeight: Option[Int],
     iter: Int
   ): List[Solution] = {
-    if (iter % 4_000_000 == 0 && toVisit.size > 0) {
-      dump(toVisit.head)
-      println(s"${GREEN_B}solutions=${solutions.size} toVisit=${toVisit.size}$RESET")
+    if (iter % 3_000_000 == 0 && toVisit.size > 0) {
+      dump(toVisit.head, bestWeightAt)
+      println(s"${GREEN}solutions=${solutions.size} toVisit=${toVisit.size} bestPathWeight=$bestPathWeight$RESET")
     }
     toVisit match {
       case works if works.isEmpty =>
@@ -93,19 +96,25 @@ def walk(
       case Seq(work, remainWork*) if goalReached(work) =>
         val newBestWeight = bestPathWeight.map(best => min(best, work.weight)).orElse(Some(work.weight))
         val newSolutions  = (Solution(work.path, work.weight) :: solutions).filterNot(_.weight > newBestWeight.get)
-        dump(work)
+        //dump(work)
         worker(remainWork, newSolutions, bestWeightAt, newBestWeight, iter + 1)
 
       case Seq(work, remainWork*) =>
         val nextCoords  = around(work).filterNot(work.visited.contains)
         val nextToVisit = nextCoords.map { nextCoord =>
           Work(nextCoord :: work.path, work.visited + nextCoord, nextWeight(nextCoord, work, coord2weight))
+        }.filterNot{work =>
+          val toGoal =
+              work.coord.x.to(to.x).foldLeft(0)((sum, x) => sum + coord2weight(Coord(x, work.coord.y))) +
+                (work.coord.y).to(to.y).foldLeft(0)((sum,y) => coord2weight(Coord(work.coord.x, y)))
+          //println(s"${work.weight + toGoal} - $belowHint")
+          (work.weight + toGoal) > belowHint.get // TODO quick & dirty hack
         }
         worker(remainWork ++ nextToVisit, solutions, bestWeightAt, bestPathWeight, iter + 1) // BFS
-        //worker(nextToVisit ++ remainWork, solutions, bestWeightAt, bestPathWeight, iter + 1) // DFS
+        //worker(remainWork.prependedAll(nextToVisit), solutions, bestWeightAt, bestPathWeight, iter + 1) // DFS
     }
   }
-  worker(Vector(Work(List(from), Set(from), Nil)), Nil, Map.empty, None, 0)
+  worker(Vector(Work(List(from), Set(from), Nil)), Nil, Map.empty, belowHint, 0)
 }
 
 def nextWeight(nextCoord: Coord, work: Work, coord2weight: Coord => Int): List[Int] = {
@@ -136,14 +145,25 @@ def resolveStar1(input: List[String]): Int = {
       .filter(c => checkValid(c, work))
   }
 
+//  val belowHint =
+//    from.x.to(to.x).map(x => area.cells(Coord(x, 0))).sum +
+//      (from.y + 1).to(to.y).map(y => area.cells(Coord(to.x, y))).sum
+
+//  val belowHint = to.x * 9 + to.y * 9
+  //val belowHint = 987
+  //val belowHint = 960
+  val belowHint = 1200
+
   val result = walk(
     from = from,
+    to = to,
     around = around,
     goalReached = work => work.path.head == to,
     coord2weight = coord => area.cells(coord),
+    belowHint = Some(belowHint),
     dump(area)
   )
-  println("result count = " + result.size)
+  println(s"result count = ${result.size} / first = ${result.head.weight}" )
   result.head.weight
 }
 
